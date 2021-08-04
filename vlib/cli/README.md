@@ -1,4 +1,6 @@
-Usage example:
+# `vlang` cli module
+
+## Quick Example
 
 ```v
 module main
@@ -28,3 +30,4 @@ fn main() {
 	app.parse(os.args)
 }
 ```
+## Architecture

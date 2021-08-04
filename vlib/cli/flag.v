@@ -18,11 +18,11 @@ pub struct Flag {
 pub mut:
 	flag FlagType
 	// Name of flag
-	name string
+	name string [required]
 	// Like short option
 	abbrev string
 	// Desciption of flag
-	description string
+	description string [required]
 	global      bool
 	// If flag is requierd
 	required bool
