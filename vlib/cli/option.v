@@ -9,7 +9,7 @@ pub:
 	default_value string
 	description string [required]
 	hide bool // Note: struct fields are zeroed (false) by default
-	mandatory bool
+	required bool
 	multi bool // Whether this option allow multiple values
 	name string [requierd]
 }
