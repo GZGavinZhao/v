@@ -1,6 +1,7 @@
 module cli
 
 type FnCommandCallback = fn (cmd Command) ?
+type ArgResult = bool | int | []int | string | []string | flloat | []float
 
 // str returns the `string` representation of the callback.
 pub fn (f FnCommandCallback) str() string {
@@ -28,6 +29,7 @@ pub mut:
 	flags           []Flag
 	required_args   int
 	args            []string
+	arg_results     map[string]ArgResult
 }
 
 // str returns the `string` representation of the `Command`.
@@ -302,4 +304,13 @@ fn (cmds []Command) contains(name string) bool {
 		}
 	}
 	return false
+}
+
+pub fn (mut cmd Command) parse() {
+
+}
+
+pub fn (mut cmd Command) run() {
+	cmd.setup()
+	cmd.parse()
 }
