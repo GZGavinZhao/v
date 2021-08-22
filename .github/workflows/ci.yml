@@ -294,9 +294,9 @@ jobs:
           UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ./v2 -o v.c cmd/v
       - name: Build V using V
         run: ./v -o v2 cmd/v && ./v2 -o v3 cmd/v
-# QTODO
-#      - name: v self compilation with -usecache
-#        run: |
+      - name: usecache
+        run: |
+           ./v -usecache examples/hello_world.v && examples/hello_world
 #          ./v -o v2 -usecache cmd/v
 #          ./v2 -o v3 -usecache cmd/v
 #          ./v3 -usecache examples/tetris/tetris.v
@@ -356,7 +356,7 @@ jobs:
           mkdir -p ~/.vmodules
           ln -s $(pwd) ~/.vmodules/ui
           ../v examples/rectangles.v
-          ../v run examples/build_examples.vsh
+          ## ../v run examples/build_examples.vsh
 
   ubuntu:
     needs: no-scheduling

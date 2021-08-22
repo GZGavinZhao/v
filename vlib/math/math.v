@@ -89,6 +89,21 @@ pub fn gcd(a_ i64, b_ i64) i64 {
 	return a
 }
 
+// egcd returns (gcd(a, b), x, y) such that |a*x + b*y| = gcd(a, b)
+pub fn egcd(a i64, b i64) (i64, i64, i64) {
+	mut old_r, mut r := a, b
+	mut old_s, mut s := i64(1), i64(0)
+	mut old_t, mut t := i64(0), i64(1)
+
+	for r != 0 {
+		quot := old_r / r
+		old_r, r = r, old_r % r
+		old_s, s = s, old_s - quot * s
+		old_t, t = t, old_t - quot * t
+	}
+	return if old_r < 0 { -old_r } else { old_r }, old_s, old_t
+}
+
 // lcm calculates least common (non-negative) multiple.
 pub fn lcm(a i64, b i64) i64 {
 	if a == 0 {
@@ -145,4 +160,44 @@ pub fn radians(degrees f64) f64 {
 [inline]
 pub fn signbit(x f64) bool {
 	return f64_bits(x) & sign_mask != 0
+}
+
+pub fn tolerance(a f64, b f64, tol f64) bool {
+	mut ee := tol
+	// Multiplying by ee here can underflow denormal values to zero.
+	// Check a==b so that at least if a and b are small and identical
+	// we say they match.
+	if a == b {
+		return true
+	}
+	mut d := a - b
+	if d < 0 {
+		d = -d
+	}
+	// note: b is correct (expected) value, a is actual value.
+	// make error tolerance a fraction of b, not a.
+	if b != 0 {
+		ee = ee * b
+		if ee < 0 {
+			ee = -ee
+		}
+	}
+	return d < ee
+}
+
+pub fn close(a f64, b f64) bool {
+	return tolerance(a, b, 1e-14)
+}
+
+pub fn veryclose(a f64, b f64) bool {
+	return tolerance(a, b, 4e-16)
+}
+
+pub fn alike(a f64, b f64) bool {
+	if is_nan(a) && is_nan(b) {
+		return true
+	} else if a == b {
+		return signbit(a) == signbit(b)
+	}
+	return false
 }

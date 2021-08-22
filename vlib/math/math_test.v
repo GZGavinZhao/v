@@ -186,48 +186,8 @@ const (
 	]
 )
 
-fn tolerance(a f64, b f64, tol f64) bool {
-	mut ee := tol
-	// Multiplying by ee here can underflow denormal values to zero.
-	// Check a==b so that at least if a and b are small and identical
-	// we say they match.
-	if a == b {
-		return true
-	}
-	mut d := a - b
-	if d < 0 {
-		d = -d
-	}
-	// note: b is correct (expected) value, a is actual value.
-	// make error tolerance a fraction of b, not a.
-	if b != 0 {
-		ee = ee * b
-		if ee < 0 {
-			ee = -ee
-		}
-	}
-	return d < ee
-}
-
-fn close(a f64, b f64) bool {
-	return tolerance(a, b, 1e-14)
-}
-
-fn veryclose(a f64, b f64) bool {
-	return tolerance(a, b, 4e-16)
-}
-
 fn soclose(a f64, b f64, e f64) bool {
 	return tolerance(a, b, e)
-}
-
-fn alike(a f64, b f64) bool {
-	if is_nan(a) && is_nan(b) {
-		return true
-	} else if a == b {
-		return signbit(a) == signbit(b)
-	}
-	return false
 }
 
 fn test_nan() {
@@ -803,4 +763,17 @@ fn test_large_tan() {
 		f2 := tan(math.vf_[i] + large)
 		assert soclose(f1, f2, 4e-9)
 	}
+}
+
+fn test_egcd() {
+	helper := fn (a i64, b i64, expected_g i64) {
+		g, x, y := egcd(a, b)
+		assert g == expected_g
+		assert abs(a * x + b * y) == g
+	}
+
+	helper(6, 9, 3)
+	helper(6, -9, 3)
+	helper(-6, -9, 3)
+	helper(0, 0, 0)
 }

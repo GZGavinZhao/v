@@ -2110,6 +2110,69 @@ fn main() {
 }
 ```
 
+V supports closures too.
+This means that anonymous functions can inherit variables from the scope they were created in.
+They must do so explicitly by listing all variables that are inherited.
+
+> Warning: currently works on Unix-based, x64 architectures only.
+Some work is in progress to make closures work on Windows, then other architectures.
+
+```v
+my_int := 1
+my_closure := fn [my_int] () {
+	println(my_int)
+}
+my_closure() // prints 1
+```
+
+Inherited variables are copied when the anonymous function is created.
+This means that if the original variable is modified after the creation of the function,
+the modification won't be reflected in the function.
+
+```v
+mut i := 1
+func := fn [i] () int {
+	return i
+}
+println(func() == 1) // true
+i = 123
+println(func() == 1) // still true
+```
+
+However, the variable can be modified inside the anonymous function.
+The change won't be reflected outside, but will be in the later function calls.
+
+```v
+fn new_counter() fn () int {
+	mut i := 0
+	return fn [mut i] () int {
+		i++
+		return i
+	}
+}
+
+c := new_counter()
+println(c()) // 1
+println(c()) // 2
+println(c()) // 3
+```
+
+If you need the value to be modified outside the function, use a reference.
+**Warning**: _you need to make sure the reference is always valid,
+otherwise this can result in undefined behavior._
+
+```v
+mut i := 0
+mut ref := &i
+print_counter := fn [ref] () {
+	println(*ref)
+}
+
+print_counter() // 0
+i = 10
+print_counter() // 10
+```
+
 ## References
 
 ```v
@@ -2397,6 +2460,15 @@ v install [module]
 **Example:**
 ```powershell
 v install ui
+```
+
+Modules could install directly from git or mercurial repositories.
+```powershell
+v install [--git|--hg] [url]
+```
+**Example:**
+```powershell
+v install --git https://github.com/vlang/markdown
 ```
 
 Removing a module with v:
@@ -3965,8 +4037,13 @@ struct Customer {
 
 db := sqlite.connect('customers.db') ?
 
-// you can create tables
-// CREATE TABLE IF NOT EXISTS `Customer` (`id` INTEGER PRIMARY KEY, `name` TEXT NOT NULL, `nr_orders` INTEGER, `country` TEXT NOT NULL)
+// you can create tables:
+// CREATE TABLE IF NOT EXISTS `Customer` (
+//      `id` INTEGER PRIMARY KEY,
+//      `name` TEXT NOT NULL,
+//      `nr_orders` INTEGER,
+//      `country` TEXT NOT NULL
+// )
 sql db {
 	create table Customer
 }
@@ -4033,6 +4110,17 @@ By convention it is preferred that comments are written in *present tense*.
 An overview of the module must be placed in the first comment right after the module's name.
 
 To generate documentation use vdoc, for example `v doc net.http`.
+
+### Newlines in Documentation Comments
+
+Comments spanning multiple lines are merged together using spaces, unless
+
+- the line is empty
+- the line ends with a `.` (end of sentence)
+- the line is contains purely of at least 3 of `-`, `=`, `_`, `*`, `~` (horizontal rule)
+- the line starts with at least one `#` followed by a space (header)
+- the line starts and ends with a `|` (table)
+- the line starts with `- ` (list)
 
 ## Tools
 

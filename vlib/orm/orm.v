@@ -136,24 +136,22 @@ pub fn orm_stmt_gen(table string, para string, kind StmtKind, num bool, qm strin
 
 	match kind {
 		.insert {
-			str += 'INSERT INTO $para$table$para ('
-			for i, field in data.fields {
-				str += '$para$field$para'
-				if i < data.fields.len - 1 {
-					str += ', '
-				}
-			}
-			str += ') VALUES ('
-			for i, _ in data.fields {
-				str += qm
+			mut values := []string{}
+
+			for _ in 0 .. data.fields.len {
+				// loop over the length of data.field and generate ?0, ?1 or just ? based on the $num parameter for value placeholders
 				if num {
-					str += '$c'
+					values << '$qm$c'
 					c++
-				}
-				if i < data.fields.len - 1 {
-					str += ', '
+				} else {
+					values << '$qm'
 				}
 			}
+
+			str += 'INSERT INTO $para$table$para ('
+			str += data.fields.map('$para$it$para').join(', ')
+			str += ') VALUES ('
+			str += values.join(', ')
 			str += ')'
 		}
 		.update {
@@ -300,6 +298,7 @@ pub fn orm_table_gen(table string, para string, defaults bool, def_unique_len in
 		mut is_skip := false
 		mut unique_len := 0
 		// mut fkey := ''
+		mut field_name := sql_field_name(field)
 		for attr in field.attrs {
 			match attr.name {
 				'primary' {
@@ -308,7 +307,7 @@ pub fn orm_table_gen(table string, para string, defaults bool, def_unique_len in
 				'unique' {
 					if attr.arg != '' {
 						if attr.kind == .string {
-							unique[attr.arg] << field.name
+							unique[attr.arg] << field_name
 							continue
 						} else if attr.kind == .number {
 							unique_len = attr.arg.int()
@@ -339,7 +338,6 @@ pub fn orm_table_gen(table string, para string, defaults bool, def_unique_len in
 			continue
 		}
 		mut stmt := ''
-		mut field_name := sql_field_name(field)
 		mut ctyp := sql_from_v(sql_field_type(field)) or {
 			field_name = '${field_name}_id'
 			sql_from_v(7) ?
@@ -355,7 +353,7 @@ pub fn orm_table_gen(table string, para string, defaults bool, def_unique_len in
 			stmt += ' NOT NULL'
 		}
 		if is_unique {
-			mut f := 'UNIQUE($para$field.name$para'
+			mut f := 'UNIQUE($para$field_name$para'
 			if ctyp == 'TEXT' && def_unique_len > 0 {
 				if unique_len > 0 {
 					f += '($unique_len)'

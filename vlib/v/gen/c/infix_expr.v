@@ -33,6 +33,9 @@ fn (mut g Gen) infix_expr(node ast.InfixExpr) {
 		.left_shift {
 			g.infix_expr_left_shift_op(node)
 		}
+		.and, .logical_or {
+			g.infix_expr_and_or_op(node)
+		}
 		else {
 			// `x & y == 0` => `(x & y) == 0` in C
 			need_par := node.op in [.amp, .pipe, .xor]
@@ -393,6 +396,13 @@ fn (mut g Gen) infix_expr_in_optimization(left ast.Expr, right ast.ArrayInit) {
 
 // infix_expr_is_op generates code for `is` and `!is`
 fn (mut g Gen) infix_expr_is_op(node ast.InfixExpr) {
+	sym := g.table.get_type_symbol(node.left_type)
+	right_sym := g.table.get_type_symbol(node.right_type)
+	if sym.kind == .interface_ && right_sym.kind == .interface_ {
+		g.gen_interface_is_op(node)
+		return
+	}
+
 	cmp_op := if node.op == .key_is { '==' } else { '!=' }
 	g.write('(')
 	g.expr(node.left)
@@ -402,7 +412,6 @@ fn (mut g Gen) infix_expr_is_op(node ast.InfixExpr) {
 	} else {
 		g.write('.')
 	}
-	sym := g.table.get_type_symbol(node.left_type)
 	if sym.kind == .interface_ {
 		g.write('_typ $cmp_op ')
 		// `_Animal_Dog_index`
@@ -418,6 +427,32 @@ fn (mut g Gen) infix_expr_is_op(node ast.InfixExpr) {
 		g.write('_typ $cmp_op ')
 	}
 	g.expr(node.right)
+}
+
+fn (mut g Gen) gen_interface_is_op(node ast.InfixExpr) {
+	mut left_sym := g.table.get_type_symbol(node.left_type)
+	right_sym := g.table.get_type_symbol(node.right_type)
+
+	mut info := left_sym.info as ast.Interface
+
+	common_variants := info.conversions[node.right_type] or {
+		left_variants := g.table.iface_types[left_sym.name]
+		right_variants := g.table.iface_types[right_sym.name]
+		c := left_variants.filter(it in right_variants)
+		info.conversions[node.right_type] = c
+		c
+	}
+	left_sym.info = info
+	if common_variants.len == 0 {
+		g.write('false')
+		return
+	}
+	g.write('I_${left_sym.cname}_is_I_${right_sym.cname}(')
+	if node.left_type.is_ptr() {
+		g.write('*')
+	}
+	g.expr(node.left)
+	g.write(')')
 }
 
 // infix_expr_arithmetic_op generates code for `+`, `-`, `*`, `/`, and `%`
@@ -497,6 +532,32 @@ fn (mut g Gen) infix_expr_left_shift_op(node ast.InfixExpr) {
 	} else {
 		g.gen_plain_infix_expr(node)
 	}
+}
+
+// infix_expr_and_or_op generates code for `&&` and `||`
+fn (mut g Gen) infix_expr_and_or_op(node ast.InfixExpr) {
+	if node.right is ast.IfExpr {
+		// b := a && if true { a = false ...} else {...}
+		prev_inside_ternary := g.inside_ternary
+		g.inside_ternary = 0
+		if g.need_tmp_var_in_if(node.right) {
+			tmp := g.new_tmp_var()
+			cur_line := g.go_before_stmt(0).trim_space()
+			g.empty_line = true
+			g.write('bool $tmp = (')
+			g.expr(node.left)
+			g.writeln(');')
+			g.stmt_path_pos << g.out.len
+			g.write('$cur_line $tmp $node.op.str() ')
+			g.infix_left_var_name = if node.op == .and { tmp } else { '!$tmp' }
+			g.expr(node.right)
+			g.infix_left_var_name = ''
+			g.inside_ternary = prev_inside_ternary
+			return
+		}
+		g.inside_ternary = prev_inside_ternary
+	}
+	g.gen_plain_infix_expr(node)
 }
 
 // gen_plain_infix_expr generates basic code for infix expressions,

@@ -33,10 +33,13 @@ fn main() {
 		os.create('table.html') ?
 	}
 	mut table := os.read_file('table.html') ?
-	if table.contains('>$commit<') {
-		println('nothing to benchmark')
-		exit(1)
-		return
+	if os.exists('website/index.html') {
+		uploaded_index := os.read_file('website/index.html') ?
+		if uploaded_index.contains('>$commit<') {
+			println('nothing to benchmark')
+			exit(1)
+			return
+		}
 	}
 	// for i, commit in commits {
 	message := exec('git log --pretty=format:"%s" -n1 $commit')
@@ -47,9 +50,12 @@ fn main() {
 	// exec('git checkout $commit')
 	println('  Building vprod...')
 	os.chdir(vdir)
-	exec('./v -o vprod -prod -prealloc cmd/v')
+	if os.args.contains('-noprod') {
+		exec('./v -o vprod cmd/v') // for faster debugging
+	} else {
+		exec('./v -o vprod -prod -prealloc cmd/v')
+	}
 	// println('cur vdir="$vdir"')
-	// exec('v -o vprod cmd/v') // for faster debugging
 	// cache vlib modules
 	exec('$vdir/v wipe-cache')
 	exec('$vdir/v -o v2 -prod cmd/v')
@@ -58,6 +64,12 @@ fn main() {
 	mut tcc_path := 'tcc'
 	$if freebsd {
 		tcc_path = '/usr/local/bin/tcc'
+		if vdir.contains('/tmp/cirrus-ci-build') {
+			tcc_path = 'clang'
+		}
+	}
+	if os.args.contains('-clang') {
+		tcc_path = 'clang'
 	}
 	diff2 := measure('$vdir/vprod $voptions -cc $tcc_path -o v2 cmd/v', 'v2')
 	diff3 := 0 // measure('$vdir/vprod -native $vdir/cmd/tools/1mil.v', 'native 1mil')
@@ -105,6 +117,16 @@ fn main() {
 	//}
 	// exec('git checkout master')
 	// os.write_file('last_commit.txt', commits[commits.len - 1]) ?
+	// Upload the result to github pages
+	if os.args.contains('-upload') {
+		println('uploading...')
+		os.chdir('website')
+		os.execute_or_exit('git checkout gh-pages')
+		os.cp('../index.html', 'index.html') ?
+		os.rm('../index.html') ?
+		os.system('git commit -am "update benchmark"')
+		os.system('git push origin gh-pages')
+	}
 }
 
 fn exec(s string) string {

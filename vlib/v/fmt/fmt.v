@@ -286,9 +286,9 @@ pub fn (mut f Fmt) imports(imports []ast.Import) {
 }
 
 pub fn (f Fmt) imp_stmt_str(imp ast.Import) string {
-	is_diff := imp.alias != imp.mod && !imp.mod.ends_with('.' + imp.alias)
+	mod := if imp.mod.len == 0 { imp.alias } else { imp.mod }
+	is_diff := imp.alias != mod && !mod.ends_with('.' + imp.alias)
 	mut imp_alias_suffix := if is_diff { ' as $imp.alias' } else { '' }
-
 	mut syms := imp.syms.map(it.name).filter(f.import_syms_used[it])
 	syms.sort()
 	if syms.len > 0 {
@@ -298,7 +298,7 @@ pub fn (f Fmt) imp_stmt_str(imp ast.Import) string {
 			' {\n\t' + syms.join(',\n\t') + ',\n}'
 		}
 	}
-	return '$imp.mod$imp_alias_suffix'
+	return '$mod$imp_alias_suffix'
 }
 
 //=== Node helpers ===//
@@ -391,8 +391,7 @@ pub fn (mut f Fmt) stmt(node ast.Stmt) {
 		eprintln('stmt: ${node.pos:-42} | node: ${node.type_name():-20}')
 	}
 	match node {
-		ast.NodeError {}
-		ast.EmptyStmt {}
+		ast.EmptyStmt, ast.NodeError {}
 		ast.AsmStmt {
 			f.asm_stmt(node)
 		}
@@ -491,7 +490,7 @@ pub fn (mut f Fmt) expr(node ast.Expr) {
 		ast.NodeError {}
 		ast.EmptyExpr {}
 		ast.AnonFn {
-			f.fn_decl(node.decl)
+			f.anon_fn(node)
 		}
 		ast.ArrayDecompose {
 			f.array_decompose(node)
@@ -868,6 +867,15 @@ pub fn (mut f Fmt) enum_decl(node ast.EnumDecl) {
 pub fn (mut f Fmt) fn_decl(node ast.FnDecl) {
 	f.attrs(node.attrs)
 	f.write(node.stringify(f.table, f.cur_mod, f.mod2alias)) // `Expr` instead of `ast.Expr` in mod ast
+	f.fn_body(node)
+}
+
+pub fn (mut f Fmt) anon_fn(node ast.AnonFn) {
+	f.write(node.stringify(f.table, f.cur_mod, f.mod2alias)) // `Expr` instead of `ast.Expr` in mod ast
+	f.fn_body(node.decl)
+}
+
+fn (mut f Fmt) fn_body(node ast.FnDecl) {
 	if node.language == .v {
 		if !node.no_body {
 			f.write(' {')
@@ -1007,7 +1015,7 @@ pub fn (mut f Fmt) global_decl(node ast.GlobalDecl) {
 
 pub fn (mut f Fmt) go_expr(node ast.GoExpr) {
 	f.write('go ')
-	f.expr(node.call_expr)
+	f.call_expr(node.call_expr)
 }
 
 pub fn (mut f Fmt) goto_label(node ast.GotoLabel) {
@@ -1041,16 +1049,26 @@ pub fn (mut f Fmt) interface_decl(node ast.InterfaceDecl) {
 		f.comments(iface.comments, inline: true, has_nl: false, level: .indent)
 		f.writeln('')
 	}
-	for i, field in node.fields {
-		if i == node.mut_pos {
-			f.writeln('mut:')
+	immut_fields := if node.mut_pos < 0 { node.fields } else { node.fields[..node.mut_pos] }
+	mut_fields := if node.mut_pos < 0 { []ast.StructField{} } else { node.fields[node.mut_pos..] }
+
+	mut immut_methods := node.methods
+	mut mut_methods := []ast.FnDecl{}
+	for i, method in node.methods {
+		if method.params[0].is_mut {
+			immut_methods = node.methods[..i]
+			mut_methods = node.methods[i..]
+			break
 		}
-		// TODO: alignment, comments, etc.
+	}
+
+	// TODO: alignment, comments, etc.
+	for field in immut_fields {
 		mut ft := f.no_cur_mod(f.table.type_to_str_using_aliases(field.typ, f.mod2alias))
 		f.writeln('\t$field.name $ft')
 		f.mark_types_import_as_used(field.typ)
 	}
-	for method in node.methods {
+	for method in immut_methods {
 		f.write('\t')
 		f.write(method.stringify(f.table, f.cur_mod, f.mod2alias).after('fn '))
 		f.comments(method.comments, inline: true, has_nl: false, level: .indent)
@@ -1060,6 +1078,25 @@ pub fn (mut f Fmt) interface_decl(node ast.InterfaceDecl) {
 			f.mark_types_import_as_used(param.typ)
 		}
 		f.mark_types_import_as_used(method.return_type)
+	}
+	if mut_fields.len + mut_methods.len > 0 {
+		f.writeln('mut:')
+		for field in mut_fields {
+			mut ft := f.no_cur_mod(f.table.type_to_str_using_aliases(field.typ, f.mod2alias))
+			f.writeln('\t$field.name $ft')
+			f.mark_types_import_as_used(field.typ)
+		}
+		for method in mut_methods {
+			f.write('\t')
+			f.write(method.stringify(f.table, f.cur_mod, f.mod2alias).after('fn '))
+			f.comments(method.comments, inline: true, has_nl: false, level: .indent)
+			f.writeln('')
+			f.comments(method.next_comments, inline: false, has_nl: true, level: .indent)
+			for param in method.params {
+				f.mark_types_import_as_used(param.typ)
+			}
+			f.mark_types_import_as_used(method.return_type)
+		}
 	}
 	f.writeln('}\n')
 }
@@ -1500,7 +1537,7 @@ pub fn (mut f Fmt) call_expr(node ast.CallExpr) {
 	} else {
 		f.write_language_prefix(node.language)
 		if node.left is ast.AnonFn {
-			f.fn_decl(node.left.decl)
+			f.anon_fn(node.left)
 		} else if node.language != .v {
 			f.write('${node.name.after_char(`.`)}')
 		} else {

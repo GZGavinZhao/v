@@ -797,6 +797,8 @@ pub mut:
 	fields  []StructField
 	methods []Fn
 	ifaces  []Type
+	// `I1 is I2` conversions
+	conversions map[int][]Type
 	// generic interface support
 	is_generic     bool
 	generic_types  []Type
@@ -1064,7 +1066,7 @@ pub fn (t &Table) type_to_str_using_aliases(typ Type, import_aliases map[string]
 		nr_muls--
 		res = 'shared ' + res
 	}
-	if nr_muls > 0 {
+	if nr_muls > 0 && !typ.has_flag(.variadic) {
 		res = strings.repeat(`&`, nr_muls) + res
 	}
 	if typ.has_flag(.optional) {
