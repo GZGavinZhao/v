@@ -305,11 +305,11 @@ fn (cmds []Command) contains(name string) bool {
 	return false
 }
 
-pub fn (mut cmd Command) parse() {
+// pub fn (mut cmd Command) parse() {
 
-}
+// }
 
-pub fn (mut cmd Command) run() {
-	cmd.setup()
-	cmd.parse()
-}
+// pub fn (mut cmd Command) run() {
+// 	cmd.setup()
+// 	cmd.parse()
+// }

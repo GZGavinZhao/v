@@ -11,28 +11,41 @@ pub enum FlagType {
 	string_array
 }
 
+pub type ArgResult = []f64 | []int | []string | bool | f64 | int | string
+
 // Flag holds information for a command line flag.
 // (flags are also commonly referred to as "options" or "switches")
-// These are typically denoted in the shell by a short form `-f` and/or a long form `--flag`
+// These are typically denoted in the shell by a short form `-f` and/or a long form `--flag`.
 pub struct Flag {
-pub mut:
-	flag FlagType
-	// Name of flag
+pub:
+	// Name of flag.
 	name string [required]
-	// Like short option
+	// Type of the flag.
+	flag FlagType = FlagType.bool
+pub mut:
+	// A single-character string that can be used as a shorthand for this flag.
 	abbrev string
-	// Desciption of flag
-	description string [required]
+	// Desciption of flag.
+	description string
+	// Whether the flag can be turned off. Has no effect for non-bool flags.
+	negatable   bool
+	// Whether the flag is recursively enabled for all (sub-)commands below.
 	global      bool
-	// If flag is requierd
-	required bool
-	// Default value if no value provide by command line
-	default_value []string = []
+	// If flag is requierd.
+	required     bool
+	// Allowed options for the flag. Has no effect for bool flags.
+	options      ArgResult
+	// Usage message for each option. Has no effect if `options` is empty.
+	options_help map[string]string
+	// Default value if no value provide by command line.
+	default_value ArgResult
+	// Enable [POSIX](https://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap12.html#tag_12_02) style options.
+	posix bool = true
 mut:
 	// Set true if flag found.
 	found bool
 	// Value of flag
-	value []string = []
+	value ArgResult
 }
 
 // get_all_found returns an array of all `Flag`s found in the command parameters
